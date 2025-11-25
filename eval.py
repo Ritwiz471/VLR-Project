@@ -1,5 +1,7 @@
 import os
 import torch
+os.environ['CLEANFID_CACHE'] = "/home/rithviks/.cleanfid_cache"
+import cleanfid
 from cleanfid import fid as FID
 from PIL import Image
 from torch.utils.data import Dataset
@@ -10,6 +12,7 @@ from tqdm import tqdm
 
 from utils import scan_files_in_dir
 from prettytable import PrettyTable
+# cleanfid.set_cache_path("/home/rithviks/.cleanfid_cache")
 
 class EvalDataset(Dataset):
     def __init__(self, gt_folder, pred_folder, height=1024):

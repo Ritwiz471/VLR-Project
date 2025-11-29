@@ -10,5 +10,16 @@ Datasets
 densepose_
 .vscode
 playground.py
-output
+
 model/cloth_masker_segformer.py
+
+catvton-env/
+env/
+venv/
+
+test/
+train/
+
+results/
+test_pairs_unpaired.txt
+zalando-hd-resized.zip

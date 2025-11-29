@@ -45,6 +45,13 @@ class CatVTONPipeline:
         init_adapter(self.unet, cross_attn_cls=SkipAttnProcessor)  # Skip Cross-Attention
         self.attn_modules = get_trainable_module(self.unet, "attention")
         self.auto_attn_ckpt_load(attn_ckpt, attn_ckpt_version)
+
+        self.pre_concat_conv = torch.nn.Conv2d(
+                                    in_channels=8,  # masked_latent (4) + condition_latent (4)
+                                    out_channels=4, # original size expected by UNet
+                                    kernel_size=1
+                                ).to(device, dtype=weight_dtype)
+
         # Pytorch 2.0 Compile
         if compile:
             self.unet = torch.compile(self.unet)
@@ -122,7 +129,8 @@ class CatVTONPipeline:
         eta=1.0,
         **kwargs
     ):
-        concat_dim = -2  # FIXME: y axis concat
+        # concat_dim = -2  # FIXME: y axis concat
+
         # Prepare inputs to Tensor
         image, condition_image, mask = self.check_inputs(image, condition_image, mask, width, height)
         image = prepare_image(image).to(self.device, dtype=self.weight_dtype)
@@ -135,9 +143,37 @@ class CatVTONPipeline:
         condition_latent = compute_vae_encodings(condition_image, self.vae)
         mask_latent = torch.nn.functional.interpolate(mask, size=masked_latent.shape[-2:], mode="nearest")
         del image, mask, condition_image
-        # Concatenate latents
-        masked_latent_concat = torch.cat([masked_latent, condition_latent], dim=concat_dim)
-        mask_latent_concat = torch.cat([mask_latent, torch.zeros_like(mask_latent)], dim=concat_dim)
+
+        # ===============================================
+        # MODIFIED CODE
+        concat_mode = kwargs.get("concat_mode", "spatial")
+
+        # Original
+        if concat_mode == "spatial":
+            concat_dim = -2  
+            masked_latent_concat = torch.cat([masked_latent, condition_latent], dim=concat_dim)
+            mask_latent_concat = torch.cat([mask_latent, torch.zeros_like(mask_latent)], dim=concat_dim)
+
+        # Channel Concat: stack features on C dimension
+        elif concat_mode == "channel":
+            concat_dim = 1  
+            raw_concat = torch.cat([masked_latent, condition_latent], dim=concat_dim)
+            masked_latent_concat = self.pre_concat_conv(raw_concat)
+            mask_latent_concat = mask_latent
+
+        else:
+            raise ValueError("Invalid concat_mode: choose 'spatial' or 'channel'.")
+
+        # # Concatenate latents
+        # raw_concat = torch.cat([masked_latent, condition_latent], dim=concat_dim)
+        # masked_latent_concat = self.pre_concat_conv(raw_concat)
+
+        # # mask_latent_concat = torch.cat([mask_latent, torch.zeros_like(mask_latent)], dim=concat_dim)
+        # mask_latent_concat = mask_latent
+        # ===============================================
+
+
+
         # Prepare noise
         latents = randn_tensor(
             masked_latent_concat.shape,
@@ -151,13 +187,47 @@ class CatVTONPipeline:
         latents = latents * self.noise_scheduler.init_noise_sigma
         # Classifier-Free Guidance
         if do_classifier_free_guidance := (guidance_scale > 1.0):
+            
+            # Original CatVTON
+            if concat_mode == "spatial":
+                masked_latent_uncond = torch.cat(
+                    [masked_latent, torch.zeros_like(condition_latent)], dim=concat_dim
+                )
+                masked_latent_cond = torch.cat(
+                    [masked_latent, condition_latent], dim=concat_dim
+                )
+
+            else:  # concat_mode == "channel"
+                uncond_raw = torch.cat(
+                    [masked_latent, torch.zeros_like(masked_latent)], dim=1
+                )
+                masked_latent_uncond = self.pre_concat_conv(uncond_raw)
+
+                # Conditional: 4 + 4 → 8 channels → project back to 4
+                cond_raw = torch.cat(
+                    [masked_latent, condition_latent], dim=1
+                )
+                masked_latent_cond = self.pre_concat_conv(cond_raw)
+
+
             masked_latent_concat = torch.cat(
-                [
-                    torch.cat([masked_latent, torch.zeros_like(condition_latent)], dim=concat_dim),
-                    masked_latent_concat,
-                ]
+                [masked_latent_uncond, masked_latent_cond],
+                dim=0
             )
-            mask_latent_concat = torch.cat([mask_latent_concat] * 2)
+
+            # Duplicate mask for unconditional/conditional
+            mask_latent_concat = torch.cat(
+                [mask_latent_concat, mask_latent_concat],
+                dim=0
+            )
+
+            # masked_latent_concat = torch.cat(
+            #     [
+            #         torch.cat([masked_latent, torch.zeros_like(condition_latent)], dim=concat_dim),
+            #         masked_latent_concat,
+            #     ]
+            # )
+            # mask_latent_concat = torch.cat([mask_latent_concat] * 2)
 
         # Denoising loop
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
@@ -194,7 +264,16 @@ class CatVTONPipeline:
                     progress_bar.update()
 
         # Decode the final latents
-        latents = latents.split(latents.shape[concat_dim] // 2, dim=concat_dim)[0]
+        # latents = latents.split(latents.shape[concat_dim] // 2, dim=concat_dim)[0]
+        # ===============================================
+        # MODIFIED CODE
+        if concat_mode == "spatial":
+            latents = latents.split(latents.shape[concat_dim] // 2, dim=concat_dim)[0]
+        else:
+            latents = latents[: latents.shape[0] // 2]
+        # ===============================================
+
+        
         latents = 1 / self.vae.config.scaling_factor * latents
         image = self.vae.decode(latents.to(self.device, dtype=self.weight_dtype)).sample
         image = (image / 2 + 0.5).clamp(0, 1)
@@ -311,7 +390,13 @@ class CatVTONPix2PixPipeline(CatVTONPipeline):
                     progress_bar.update()
 
         # Decode the final latents
-        latents = latents.split(latents.shape[concat_dim] // 2, dim=concat_dim)[0]
+        # latents = latents.split(latents.shape[concat_dim] // 2, dim=concat_dim)[0]
+        if concat_mode == "spatial":
+            latents = latents.split(latents.shape[concat_dim] // 2, dim=concat_dim)[0]
+        else: 
+            latents = latents[: latents.shape[0] // 2]
+        # ==============================================
+
         latents = 1 / self.vae.config.scaling_factor * latents
         image = self.vae.decode(latents.to(self.device, dtype=self.weight_dtype)).sample
         image = (image / 2 + 0.5).clamp(0, 1)

@@ -213,6 +213,15 @@ def parse_args():
         default=True,
         help="Whether or not to enable condition noise.",
     )
+
+    parser.add_argument(
+        "--concat_mode",
+        type=str,
+        default="spatial",
+        choices=["spatial", "channel"],
+        help="Choose between spatial concatenation or channel concatenation."
+    )
+
     
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
@@ -291,6 +300,7 @@ def main():
             person_images,
             cloth_images,
             masks,
+            concat_mode=args.concat_mode,
             num_inference_steps=args.num_inference_steps,
             guidance_scale=args.guidance_scale,
             height=args.height,

@@ -17,25 +17,6 @@ Once the datasets are downloaded, the folder structures should look like these:
 ...
 ```
 
-```
-├── DressCode
-|   ├── test_pairs_paired.txt
-|   ├── test_pairs_unpaired.txt
-│   ├── [dresses | lower_body | upper_body]
-|   |   ├── test_pairs_paired.txt
-|   |   ├── test_pairs_unpaired.txt
-│   │   ├── images
-│   │   │   ├── [013563_0.jpg | 013563_1.jpg | 013564_0.jpg | 013564_1.jpg | ...]
-│   │   ├── agnostic_masks
-│   │   │   ├── [013563_0.png| 013564_0.png | ...]
-...
-```
-For the DressCode dataset, we provide script to preprocessed agnostic masks, run the following command:
-```PowerShell
-CUDA_VISIBLE_DEVICES=0 python preprocess_agnostic_mask.py \
---data_root_path <your_path_to_DressCode> 
-```
-
 ### 2. Inference on VTIONHD
 To run the inference on the DressCode or VITON-HD dataset, run the following command, checkpoints will be automatically downloaded from HuggingFace.
 
@@ -73,7 +54,7 @@ CUDA_VISIBLE_DEVICES=0 python eval.py \
 
 
 ## Acknowledgement
-Our code is modified based on [Diffusers](https://github.com/huggingface/diffusers). We adopt [Stable Diffusion v1.5 inpainting](https://huggingface.co/runwayml/stable-diffusion-inpainting) as the base model. We use [SCHP](https://github.com/GoGoDuck912/Self-Correction-Human-Parsing/tree/master) and [DensePose](https://github.com/facebookresearch/DensePose) to automatically generate masks in our [Gradio](https://github.com/gradio-app/gradio) App and [ComfyUI](https://github.com/comfyanonymous/ComfyUI) workflow. Thanks to all the contributors!
+Our code is modified based on [CatVTON] https://github.com/Zheng-Chong/CatVTON. Thanks to all the contributors!
 
 ## License
 All the materials, including code, checkpoints, and demo, are made available under the [Creative Commons BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) license. You are free to copy, redistribute, remix, transform, and build upon the project for non-commercial purposes, as long as you give appropriate credit and distribute your contributions under the same license.

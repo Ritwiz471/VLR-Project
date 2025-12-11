@@ -56,20 +56,3 @@ CUDA_VISIBLE_DEVICES=0 python eval.py \
 ## Acknowledgement
 Our code is modified based on [CatVTON] https://github.com/Zheng-Chong/CatVTON. Thanks to all the contributors!
 
-## License
-All the materials, including code, checkpoints, and demo, are made available under the [Creative Commons BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) license. You are free to copy, redistribute, remix, transform, and build upon the project for non-commercial purposes, as long as you give appropriate credit and distribute your contributions under the same license.
-
-
-## Citation
-
-```bibtex
-@misc{chong2024catvtonconcatenationneedvirtual,
- title={CatVTON: Concatenation Is All You Need for Virtual Try-On with Diffusion Models}, 
- author={Zheng Chong and Xiao Dong and Haoxiang Li and Shiyue Zhang and Wenqing Zhang and Xujie Zhang and Hanqing Zhao and Xiaodan Liang},
- year={2024},
- eprint={2407.15886},
- archivePrefix={arXiv},
- primaryClass={cs.CV},
- url={https://arxiv.org/abs/2407.15886}, 
-}
-```
